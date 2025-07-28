@@ -1,11 +1,10 @@
 import React, { useState, useCallback } from 'react'
-import { 
-  PDFViewer, 
-  configurePDFWorker, 
-  getWorkerSrc, 
-  resetWorkerConfiguration, 
-  isWorkerConfiguredProperly, 
-  retryWorkerConfiguration, 
+import {
+  PDFViewer,
+  configurePDFWorker,
+  getWorkerSrc,
+  resetWorkerConfiguration,
+  isWorkerConfiguredProperly,
   getWorkerRetryCount,
   type ViewMode,
   type SidebarView,
@@ -34,7 +33,7 @@ function App() {
   const [currentRotation, setCurrentRotation] = useState(0)
   const [viewMode, setViewMode] = useState<ViewMode>('single')
   const [sidebarView, setSidebarView] = useState<SidebarView>('thumbnails')
-  const [zoomMode, setZoomMode] = useState<ZoomMode>('auto')
+  const [zoomMode] = useState<ZoomMode>('auto')
   const [activeTool, setActiveTool] = useState<ToolbarTool>('selection')
   const [documentInfo, setDocumentInfo] = useState<PDFDocumentInfo | null>(null)
   
@@ -65,7 +64,8 @@ function App() {
         const page = await pdfDocument.getPage(pageNum)
         const textContent = await page.getTextContent()
         // Use scale 1.0 for coordinate calculation, scaling will be applied during rendering
-        const viewport = page.getViewport({ scale: 1.0 })
+        // Get viewport for coordinate calculations
+        page.getViewport({ scale: 1.0 })
         
         // Combine all text items into a single string with position tracking
         let fullText = ''
@@ -99,7 +99,7 @@ function App() {
           for (const textItem of textItems) {
             // Check if this text item overlaps with our match
             if (textItem.endIndex > startIndex && textItem.startIndex < endIndex) {
-              const [scaleX, skewY, skewX, scaleY, translateX, translateY] = textItem.transform
+              const [scaleX, , , scaleY, translateX, translateY] = textItem.transform
               
               // Calculate the rectangle for this text item using PDF coordinates
               // PDFHighlight component will handle viewport scaling
@@ -243,9 +243,7 @@ function App() {
     setSidebarView(view)
   }, [])
 
-  const handleZoomModeChange = useCallback((mode: ZoomMode) => {
-    setZoomMode(mode)
-  }, [])
+  // Removed unused handleZoomModeChange
 
   const handleToolChange = useCallback((tool: ToolbarTool) => {
     setActiveTool(tool)

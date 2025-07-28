@@ -45,7 +45,8 @@ const TestPDF: React.FC<TestPDFProps> = ({ pageNumber, referenceText, fileUrl })
       setDebugInfo(`📄 Loaded page ${targetPage}`)
       
       const textContent = await page.getTextContent()
-      const viewport = page.getViewport({ scale: 1.0 })
+      // Get viewport for coordinate calculations
+      page.getViewport({ scale: 1.0 })
       setDebugInfo(`📖 Text content loaded: ${textContent.items.length} items`)
       
       // Combine all text items into a single string with position tracking
@@ -92,7 +93,7 @@ const TestPDF: React.FC<TestPDFProps> = ({ pageNumber, referenceText, fileUrl })
         for (const textItem of textItems) {
           // Check if this text item overlaps with our match
           if (textItem.endIndex > startIndex && textItem.startIndex < endIndex) {
-            const [scaleX, skewY, skewX, scaleY, translateX, translateY] = textItem.transform
+            const [scaleX, , , scaleY, translateX, translateY] = textItem.transform
             
             // Calculate the rectangle for this text item using PDF coordinates
             const fontSize = Math.abs(scaleY)
