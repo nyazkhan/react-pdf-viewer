@@ -17,8 +17,14 @@ import {
   type PDFRect
 } from '../../dist/index.mjs'
 import '../../dist/styles/viewer.css'
+import TestPDFExample from './TestPDFExample'
+
+type AppMode = 'comprehensive' | 'simple'
 
 function App() {
+  // App mode state
+  const [appMode, setAppMode] = useState<AppMode>('comprehensive')
+  
   // PDF file state
   const [file, setFile] = useState<string | File>('/compressed.tracemonkey-pldi-09.pdf')
   
@@ -274,7 +280,7 @@ function App() {
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', margin: 0, padding: 0 }}>
-      {/* Header */}
+      {/* Header with Mode Switcher */}
       <div style={{ 
         backgroundColor: '#2c3e50', 
         color: 'white', 
@@ -282,13 +288,52 @@ function App() {
         textAlign: 'center' 
       }}>
         <h1 style={{ margin: 0, fontSize: '28px' }}>🔥 Complete PDF.js Web Viewer</h1>
-        <p style={{ margin: '8px 0 0 0', opacity: 0.9 }}>
+        <p style={{ margin: '8px 0 12px 0', opacity: 0.9 }}>
           React + TypeScript PDF Viewer with comprehensive Mozilla PDF.js functionality
         </p>
+        
+        {/* Mode Switcher */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '15px' }}>
+          <button
+            onClick={() => setAppMode('comprehensive')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: appMode === 'comprehensive' ? '#007bff' : 'transparent',
+              color: 'white',
+              border: '2px solid #007bff',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+          >
+            📚 Comprehensive Viewer
+          </button>
+          <button
+            onClick={() => setAppMode('simple')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: appMode === 'simple' ? '#28a745' : 'transparent',
+              color: 'white',
+              border: '2px solid #28a745',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+          >
+            🎯 Simple TestPDF
+          </button>
+        </div>
       </div>
 
-      {/* Main content */}
-      <div style={{ display: 'flex', height: 'calc(100vh - 88px)' }}>
+      {/* Conditional Content */}
+      {appMode === 'simple' ? (
+        // Simple TestPDF Component
+        <TestPDFExample />
+      ) : (
+        // Comprehensive Viewer (existing content)
+        <div style={{ display: 'flex', height: 'calc(100vh - 134px)' }}>
         {/* Left panel */}
         <div style={{ 
           width: '350px', 
@@ -731,6 +776,7 @@ function App() {
           />
         </div>
       </div>
+      )}
     </div>
   )
 }
