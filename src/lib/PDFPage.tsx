@@ -135,243 +135,19 @@ export const PDFPage: React.FC<PDFPageProps> = ({
     }
   }, [pdf, pageNumber, scale, rotation, enableTextSelection, onPageRender, onError])
 
-  // Matrix multiplication utility (standard PDF.js method)
-  const multiplyTransforms = useCallback((a: number[], b: number[]): number[] => {
-    return [
-      a[0] * b[0] + a[2] * b[1],
-      a[1] * b[0] + a[3] * b[1],
-      a[0] * b[2] + a[2] * b[3],
-      a[1] * b[2] + a[3] * b[3],
-      a[0] * b[4] + a[2] * b[5] + a[4],
-      a[1] * b[4] + a[3] * b[5] + a[5]
-    ]
-  }, [])
-
-  // Official PDF.js text transformation method (based on Mozilla examples)
-  const transformTextItem = useCallback((viewport: PDFPageViewport, textItem: any, ctx: CanvasRenderingContext2D, style: any) => {
-    // This is the exact transformation method used in official PDF.js examples
-    // First transform: viewport.transform combined with textItem.transform
-    const combinedTransform = multiplyTransforms(viewport.transform, textItem.transform)
-    
-    // Second transform: apply Y-flip matrix [1, 0, 0, -1, 0, 0] as per PDF.js standard
-    const tx = multiplyTransforms(combinedTransform, [1, 0, 0, -1, 0, 0])
-    
-    // Calculate font size from transformation matrix
-    const fontSize = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]))
-    
-    // Adjust for font ascent/descent (official PDF.js method)
-    if (style.ascent) {
-      tx[5] -= fontSize * style.ascent
-    } else if (style.descent) {
-      tx[5] -= fontSize * (1 + style.descent)
-    } else {
-      tx[5] -= fontSize / 2
-    }
-    
-    // Adjust for rendered width (as per official examples)
-    if (textItem.width > 0) {
-      ctx.font = `${fontSize}px ${style.fontFamily || 'Arial'}`
-      const measuredWidth = ctx.measureText(textItem.str).width
-      
-      if (measuredWidth > 0) {
-        tx[0] = (textItem.width * viewport.scale) / measuredWidth
-      }
-    }
-    
-    return tx
-  }, [multiplyTransforms])
-
-  // FIX #2: Simplified direct scaling approach for text layer after zoom (kept for reference)
-  const renderTextLayerSimple = useCallback(async (pdfPage: PDFPageProxy, pdfViewport: PDFPageViewport) => {
-    if (!textLayerRef.current) return
-
-    try {
-      console.debug(`FIX #2: Simplified text layer for page ${pageNumber} at scale ${scale}`)
-      
-      // Clear existing text layer completely
-      textLayerRef.current.innerHTML = ''
-      textLayerRef.current.style.width = `${pdfViewport.width}px`
-      textLayerRef.current.style.height = `${pdfViewport.height}px`
-      
-      // Force a reflow to ensure dimensions are applied
-      textLayerRef.current.offsetHeight
-
-      // Get text content for positioning
-      const textContent = await pdfPage.getTextContent({
-        includeMarkedContent: false,
-        disableNormalization: false
-      })
-      
-      if (textContent.items.length === 0) return
-
-      // FIX #2: Direct scaling approach - render each text item directly with viewport scaling
-      textContent.items.forEach((textItem: any) => {
-        if (!textItem.str || typeof textItem.str !== 'string') return
-        if (!textItem.transform || textItem.transform.length < 6) return
-
-        // Extract transformation values
-        const [scaleX, skewY, skewX, scaleY, translateX, translateY] = textItem.transform
-        
-        // Get style information
-        const style = textContent.styles[textItem.fontName] || {}
-        
-        // Calculate actual font size from matrix
-        const fontSize = Math.abs(scaleY) * pdfViewport.scale
-        
-        // Calculate position with viewport scaling applied
-        const left = translateX * pdfViewport.scale
-        const top = (pdfViewport.height - translateY * pdfViewport.scale - fontSize)
-        
-        // Create span element with direct positioning
-        const textSpan = document.createElement('span')
-        textSpan.textContent = textItem.str
-        textSpan.style.position = 'absolute'
-        textSpan.style.whiteSpace = 'pre'
-        textSpan.style.color = 'transparent'
-        textSpan.style.cursor = 'text'
-        textSpan.style.userSelect = 'text'
-        textSpan.style.pointerEvents = 'auto'
-        
-        // Apply calculated positioning and scaling
-        textSpan.style.left = `${left}px`
-        textSpan.style.top = `${top}px`
-        textSpan.style.fontSize = `${fontSize}px`
-        textSpan.style.fontFamily = style.fontFamily || 'Arial, sans-serif'
-        
-        // Apply horizontal scaling if needed
-        if (textItem.width > 0 && Math.abs(scaleX) > 0.01) {
-          const scaleXAdjusted = (textItem.width * pdfViewport.scale) / (textItem.str.length * fontSize * 0.6)
-          if (scaleXAdjusted !== 1) {
-            textSpan.style.transform = `scaleX(${scaleXAdjusted})`
-            textSpan.style.transformOrigin = 'left bottom'
-          }
-        }
-        
-        textLayerRef.current?.appendChild(textSpan)
-      })
-
-    } catch (error) {
-      console.error('Error rendering simplified text layer:', error)
-      if (onError) {
-        onError(new Error(`Simplified text layer rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}`))
-      }
-    }
-  }, [pageNumber, scale, enableTextSelection, onError])
-
-  // FIX #3: Hybrid approach with forced re-rendering and scale detection
-  const renderTextLayerHybrid = useCallback(async (pdfPage: PDFPageProxy, pdfViewport: PDFPageViewport) => {
-    if (!textLayerRef.current) return
-
-    try {
-      console.debug(`FIX #3: Hybrid text layer for page ${pageNumber} at scale ${scale}`)
-      
-      // Clear existing text layer completely
-      textLayerRef.current.innerHTML = ''
-      textLayerRef.current.style.width = `${pdfViewport.width}px`
-      textLayerRef.current.style.height = `${pdfViewport.height}px`
-      
-      // Add scale tracking attribute for debugging
-      textLayerRef.current.setAttribute('data-current-scale', scale.toString())
-      
-      // Force a reflow to ensure dimensions are applied
-      textLayerRef.current.offsetHeight
-
-      // Get text content for positioning
-      const textContent = await pdfPage.getTextContent({
-        includeMarkedContent: false,
-        disableNormalization: false
-      })
-      
-      if (textContent.items.length === 0) return
-
-      // FIX #3: Hybrid approach - use viewport transforms but with forced positioning
-      textContent.items.forEach((textItem: any) => {
-        if (!textItem.str || typeof textItem.str !== 'string') return
-        if (!textItem.transform || textItem.transform.length < 6) return
-
-        // Extract transformation values
-        const [scaleX, skewY, skewX, scaleY, translateX, translateY] = textItem.transform
-        
-        // Get style information
-        const style = textContent.styles[textItem.fontName] || {}
-        
-        // Use hybrid approach: combine viewport scaling with original positioning
-        const fontSize = Math.abs(scaleY)
-        const actualFontSize = fontSize * pdfViewport.scale
-        
-        // More accurate positioning calculation
-        const left = translateX * pdfViewport.scale
-        const top = pdfViewport.height - (translateY * pdfViewport.scale) - actualFontSize
-        
-        // Create span element with hybrid positioning
-        const textSpan = document.createElement('span')
-        textSpan.textContent = textItem.str
-        textSpan.style.position = 'absolute'
-        textSpan.style.whiteSpace = 'pre'
-        textSpan.style.color = 'transparent'
-        textSpan.style.cursor = 'text'
-        textSpan.style.userSelect = 'text'
-        textSpan.style.pointerEvents = 'auto'
-        textSpan.style.display = 'inline-block'
-        textSpan.style.transformOrigin = 'left bottom'
-        
-        // Apply hybrid positioning and scaling
-        textSpan.style.left = `${left}px`
-        textSpan.style.top = `${top}px`
-        textSpan.style.fontSize = `${actualFontSize}px`
-        textSpan.style.fontFamily = style.fontFamily || 'Arial, sans-serif'
-        
-        // Apply width adjustment with better calculation
-        if (textItem.width > 0) {
-          const expectedWidth = textItem.str.length * actualFontSize * 0.6
-          const actualWidth = textItem.width * pdfViewport.scale
-          const widthScale = actualWidth / expectedWidth
-          
-          if (Math.abs(widthScale - 1) > 0.1) { // Only scale if significantly different
-            textSpan.style.transform = `scaleX(${widthScale})`
-          }
-        }
-        
-        // Add debugging attributes
-        textSpan.setAttribute('data-original-font-size', fontSize.toString())
-        textSpan.setAttribute('data-scale', pdfViewport.scale.toString())
-        textSpan.setAttribute('data-text', textItem.str.substring(0, 10))
-        
-        textLayerRef.current?.appendChild(textSpan)
-      })
-
-    } catch (error) {
-      console.error('Error rendering hybrid text layer:', error)
-      if (onError) {
-        onError(new Error(`Hybrid text layer rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}`))
-      }
-    }
-  }, [pageNumber, scale, enableTextSelection, onError])
-
-  // Render text layer using simplified approach (FIX #2 active)
+  // Proper PDF.js TextLayer implementation for accurate text selection
   const renderTextLayer = useCallback(async (pdfPage: PDFPageProxy, pdfViewport: PDFPageViewport) => {
-    // Use FIX #3: Hybrid approach for most reliability
-    return renderTextLayerHybrid(pdfPage, pdfViewport)
-
-    /*
-    // FIX #2: Use simplified approach for now - it's more reliable for zoom scaling
-    return renderTextLayerSimple(pdfPage, pdfViewport)
-
-    // Original complex approach kept for reference
     if (!textLayerRef.current) return
 
     try {
-      console.debug(`Rendering text layer for page ${pageNumber} at scale ${scale} using official PDF.js method`)
+      console.debug(`Rendering text layer for page ${pageNumber} at scale ${pdfViewport.scale}`)
       
       // Clear existing text layer completely
       textLayerRef.current.innerHTML = ''
       textLayerRef.current.style.width = `${pdfViewport.width}px`
       textLayerRef.current.style.height = `${pdfViewport.height}px`
       
-      // Force a reflow to ensure dimensions are applied
-      textLayerRef.current.offsetHeight
-
-      // Get text content for positioning
+      // Get text content
       const textContent = await pdfPage.getTextContent({
         includeMarkedContent: false,
         disableNormalization: false
@@ -379,44 +155,58 @@ export const PDFPage: React.FC<PDFPageProps> = ({
       
       if (textContent.items.length === 0) return
 
-      // Create a temporary canvas for font measurement (as per official examples)
-      const tempCanvas = document.createElement('canvas')
-      const tempCtx = tempCanvas.getContext('2d')!
-
-      // Render each text item using official PDF.js transformation method
-      textContent.items.forEach((textItem: any) => {
-        if (!textItem.str || typeof textItem.str !== 'string') return
+      // Use PDF.js standard approach for text positioning with proper scaling
+      textContent.items.forEach((textItem: any, index: number) => {
+        if (!textItem.str || typeof textItem.str !== 'string' || textItem.str.trim() === '') return
         if (!textItem.transform || textItem.transform.length < 6) return
 
-        // Get style information
+        const [scaleX, skewY, skewX, scaleY, translateX, translateY] = textItem.transform
         const style = textContent.styles[textItem.fontName] || {}
-
-        // Apply official PDF.js transformation method
-        // This is the key transformation used in Mozilla's examples
-        const tx = transformTextItem(pdfViewport, textItem, tempCtx, style)
         
-        // Create span element with proper positioning
+        // Calculate font size and apply viewport scale
+        const fontSize = Math.sqrt(scaleX * scaleX + skewY * skewY) * pdfViewport.scale
+        const fontHeight = Math.sqrt(skewX * skewX + scaleY * scaleY) * pdfViewport.scale
+        
+        // Apply viewport transformation to position
+        const left = translateX * pdfViewport.scale
+        const top = (translateY - Math.sqrt(skewX * skewX + scaleY * scaleY)) * pdfViewport.scale
+        
+        // Create text span with proper PDF.js positioning
         const textSpan = document.createElement('span')
         textSpan.textContent = textItem.str
         textSpan.style.position = 'absolute'
         textSpan.style.whiteSpace = 'pre'
-        textSpan.style.cursor = 'text'
-        textSpan.style.transformOrigin = 'left bottom'
-        textSpan.style.userSelect = 'text'
-        textSpan.style.pointerEvents = 'auto'
-        
-        // Apply calculated transformation and positioning
-        const fontSize = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]))
+        textSpan.style.color = 'transparent'
         textSpan.style.fontSize = `${fontSize}px`
-        textSpan.style.fontFamily = style.fontFamily || 'Arial, sans-serif'
-        textSpan.style.left = `${tx[4]}px`
-        textSpan.style.top = `${tx[5]}px`
+        textSpan.style.fontFamily = style.fontFamily || 'sans-serif'
+        textSpan.style.left = `${left}px`
+        textSpan.style.top = `${top}px`
         
-        // Apply scaling if needed
-        if (tx[0] !== 1 || tx[3] !== 1) {
-          textSpan.style.transform = `scaleX(${tx[0]})`
+        // Handle text scaling (important for proper selection)
+        if (textItem.width > 0) {
+          const textWidth = textItem.width * pdfViewport.scale
+          textSpan.style.width = `${textWidth}px`
+          
+          // Calculate horizontal scaling if needed
+          const ctx = document.createElement('canvas').getContext('2d')!
+          ctx.font = `${fontSize}px ${style.fontFamily || 'sans-serif'}`
+          const measuredWidth = ctx.measureText(textItem.str).width
+          
+          if (measuredWidth > 0) {
+            const scaleFactorX = textWidth / measuredWidth
+            if (Math.abs(scaleFactorX - 1) > 0.01) {
+              textSpan.style.transform = `scaleX(${scaleFactorX})`
+              textSpan.style.transformOrigin = '0% 0%'
+            }
+          }
         }
         
+        // Essential styles for text selection
+        textSpan.style.userSelect = 'text'
+        textSpan.style.pointerEvents = 'auto'
+        textSpan.style.cursor = 'text'
+        
+        // Add to text layer
         textLayerRef.current?.appendChild(textSpan)
       })
 
@@ -426,8 +216,7 @@ export const PDFPage: React.FC<PDFPageProps> = ({
         onError(new Error(`Text layer rendering failed: ${error instanceof Error ? error.message : 'Unknown error'}`))
       }
     }
-    */
-  }, [pageNumber, scale, enableTextSelection, onError, renderTextLayerHybrid])
+  }, [pageNumber, enableTextSelection, onError])
 
   // Render when dependencies change
   useEffect(() => {
@@ -479,12 +268,16 @@ export const PDFPage: React.FC<PDFPageProps> = ({
     lineHeight: 1,
     userSelect: enableTextSelection ? 'text' : 'none',
     pointerEvents: enableTextSelection ? 'auto' : 'none',
+    cursor: enableTextSelection ? 'text' : 'default',
     // Ensure text layer is above canvas but below highlights
     zIndex: 1,
-    // Performance optimizations for smooth selection
-    willChange: 'transform',
-    transform: 'translateZ(0)', // Force hardware acceleration
-    contain: 'layout style paint',
+    // Ensure crisp text rendering without GPU acceleration that can break alignment
+    fontSmooth: 'always',
+    WebkitFontSmoothing: 'antialiased',
+    // Prevent text selection highlighting from showing (since text is transparent)
+    WebkitUserSelect: enableTextSelection ? 'text' : 'none',
+    MozUserSelect: enableTextSelection ? 'text' : 'none',
+    msUserSelect: enableTextSelection ? 'text' : 'none',
   }
 
   const highlightLayerStyle: React.CSSProperties = {
