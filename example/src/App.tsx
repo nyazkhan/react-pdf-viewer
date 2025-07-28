@@ -1,19 +1,14 @@
 import React, { useState, useCallback } from 'react'
 import {
   PDFViewer,
-  configurePDFWorker,
-  getWorkerSrc,
-  resetWorkerConfiguration,
-  isWorkerConfiguredProperly,
-  getWorkerRetryCount,
+  PDFUtils,
   type ViewMode,
   type SidebarView,
   type ZoomMode,
   type ToolbarTool,
   type PDFDocumentProxy,
   type PDFDocumentInfo,
-  type PDFHighlightType,
-  type PDFRect
+  type PDFHighlightType
 } from '../../dist/index.mjs'
 import '../../dist/styles/viewer.css'
 import TestPDFExample from './TestPDFExample'
@@ -25,7 +20,7 @@ function App() {
   const [appMode, setAppMode] = useState<AppMode>('comprehensive')
   
   // PDF file state
-  const [file, setFile] = useState<string | File>('/compressed.tracemonkey-pldi-09.pdf')
+  const [file, setFile] = useState<string | File>(PDFUtils.samples.urls.local_tracemonkey)
   
   // PDF viewer state
   const [currentPage, setCurrentPage] = useState(1)
@@ -50,92 +45,15 @@ function App() {
     testResult: ''
   })
 
-  // Create highlight from text search
+  // Create highlight from text search using library utility
   const createHighlightFromText = useCallback(async (searchText: string) => {
     if (!pdfDocument || !searchText.trim()) {
       return
     }
 
-    const newHighlights: PDFHighlightType[] = []
-    
     try {
-      // Search through all pages
-      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
-        const page = await pdfDocument.getPage(pageNum)
-        const textContent = await page.getTextContent()
-        // Use scale 1.0 for coordinate calculation, scaling will be applied during rendering
-        // Get viewport for coordinate calculations
-        page.getViewport({ scale: 1.0 })
-        
-        // Combine all text items into a single string with position tracking
-        let fullText = ''
-        const textItems: any[] = []
-        
-        textContent.items.forEach((item: any) => {
-          if (item.str && typeof item.str === 'string') {
-            textItems.push({
-              text: item.str,
-              startIndex: fullText.length,
-              endIndex: fullText.length + item.str.length,
-              transform: item.transform,
-              width: item.width,
-              height: item.height
-            })
-            fullText += item.str
-          }
-        })
-        
-        // Search for the text (case-insensitive)
-        const searchRegex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
-        let match
-        
-        while ((match = searchRegex.exec(fullText)) !== null) {
-          const startIndex = match.index
-          const endIndex = startIndex + match[0].length
-          
-          // Find text items that contain this match
-          const rects: PDFRect[] = []
-          
-          for (const textItem of textItems) {
-            // Check if this text item overlaps with our match
-            if (textItem.endIndex > startIndex && textItem.startIndex < endIndex) {
-              const [scaleX, , , scaleY, translateX, translateY] = textItem.transform
-              
-              // Calculate the rectangle for this text item using PDF coordinates
-              // PDFHighlight component will handle viewport scaling
-              const fontSize = Math.abs(scaleY)
-              const left = translateX
-              const top = translateY // Use original Y coordinate
-              const width = textItem.width || Math.abs(scaleX) * textItem.text.length
-              const height = fontSize
-              
-              rects.push({
-                left: left,
-                top: top,
-                width: width,
-                height: height
-              })
-            }
-          }
-          
-          if (rects.length > 0) {
-            const highlight = {
-              id: `highlight-${pageNum}-${startIndex}`,
-              pageNumber: pageNum,
-              rects: rects,
-              color: '#ffff00',
-              opacity: 0.3,
-              content: match[0]
-            }
-            
-            newHighlights.push(highlight)
-          }
-        }
-      }
-      
-      console.log(`Found ${newHighlights.length} highlights for "${searchText}"`)
+      const newHighlights = await PDFUtils.createHighlights(pdfDocument, searchText)
       setHighlights(newHighlights)
-      
     } catch (error) {
       console.error('Error creating highlights:', error)
     }
@@ -157,40 +75,34 @@ function App() {
     setHighlightText('')
   }, [])
 
-  // Predefined text highlight
+  // Predefined text highlight using library samples
   const highlightPredefinedText = useCallback(() => {
-    const predefinedText = "r functions in order to verify that the call stack is refreshedat any point it needs to be used. In order to access the call stack,a function must be annotated as either FORCESSTACK or RE-QUIRESSTACK. These annotations are also required in order to callREQUIRESSTACK functions, which are presumed to access the callstack transitively. FORCESSTACK is a trusted annotation, appliedto only 5 functions, that means the function refreshes the call stack.REQUIRESSTACK is an untrusted a"
+    const predefinedText = PDFUtils.samples.texts.traceMonkey
     setHighlightText(predefinedText)
     createHighlightFromText(predefinedText)
   }, [createHighlightFromText])
 
-  // Update worker info
+  // Update worker info using library utility
   const updateWorkerInfo = useCallback(() => {
+    const info = PDFUtils.getWorkerInfo()
     setWorkerInfo({
-      configured: isWorkerConfiguredProperly(),
-      workerSrc: getWorkerSrc(),
-      retryCount: getWorkerRetryCount(),
+      configured: info.configured,
+      workerSrc: info.workerSrc,
+      retryCount: info.retryCount,
       testResult: ''
     })
   }, [])
 
-  // Test worker functionality
+  // Test worker functionality using library utility
   const testWorker = useCallback(async () => {
-    try {
-      await configurePDFWorker()
-      setWorkerInfo(prev => ({ ...prev, testResult: 'Worker test passed ✅' }))
-    } catch (error) {
-      setWorkerInfo(prev => ({ 
-        ...prev, 
-        testResult: `Worker test failed: ${error instanceof Error ? error.message : 'Unknown error'} ❌` 
-      }))
-    }
+    const result = await PDFUtils.testWorker()
+    setWorkerInfo(prev => ({ ...prev, testResult: result.message }))
     updateWorkerInfo()
   }, [updateWorkerInfo])
 
-  // Reset worker
+  // Reset worker using library utility
   const resetWorker = useCallback(() => {
-    resetWorkerConfiguration()
+    PDFUtils.resetWorker()
     updateWorkerInfo()
   }, [updateWorkerInfo])
 
@@ -373,7 +285,7 @@ function App() {
               
               <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => setFile('/compressed.tracemonkey-pldi-09.pdf')}
+                  onClick={() => setFile(PDFUtils.samples.urls.local_tracemonkey)}
                   style={{
                     padding: '4px 8px',
                     fontSize: '12px',
@@ -387,7 +299,7 @@ function App() {
                   📄 Local Sample
                 </button>
                 <button
-                  onClick={() => setFile('https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf')}
+                  onClick={() => setFile(PDFUtils.samples.urls.mozilla_tracemonkey)}
                   style={{
                     padding: '4px 8px',
                     fontSize: '12px',

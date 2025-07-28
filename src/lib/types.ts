@@ -87,51 +87,36 @@ export interface PDFSidebarProps {
 }
 
 export interface PDFViewerProps {
+  // Required props
   file: string | File | ArrayBuffer | Uint8Array
+  
+  // Optional display props
   page?: number
   scale?: number
   rotation?: number
+  width?: string | number
+  height?: string | number
+  className?: string
+  style?: CSSProperties
+  
+  // View configuration
   viewMode?: ViewMode
   sidebarView?: SidebarView
   zoomMode?: ZoomMode
   activeTool?: ToolbarTool
-  onDocumentLoad?: (pdf: PDFDocumentProxy) => void
-  onPageChange?: (page: number) => void
-  onScaleChange?: (scale: number) => void
-  onRotationChange?: (rotation: number) => void
-  onViewModeChange?: (mode: ViewMode) => void
-  onSidebarToggle?: (isOpen: boolean) => void
-  onSidebarViewChange?: (view: SidebarView) => void
-  onToolChange?: (tool: ToolbarTool) => void
-  onError?: (error: Error) => void
-  onSearch?: (term: string) => void
-  onPrint?: () => void
-  onDownload?: () => void
-  onOpenFile?: (file: File) => void
-  onPresentationMode?: () => void
-  onDocumentInfo?: (info: PDFDocumentInfo) => void
   
-  // Keyboard shortcuts
-  enableKeyboardShortcuts?: boolean
-  
-  // Layout and styling
-  className?: string
-  style?: CSSProperties
+  // Feature toggles
   enableTextSelection?: boolean
-  highlights?: PDFHighlight[]
-  renderToolbar?: boolean
-  renderSidebar?: boolean
-  customToolbar?: ReactNode
-  width?: number | string
-  height?: number | string
-  
-  // Advanced features
   enableAnnotations?: boolean
   enableForms?: boolean
   enableSearch?: boolean
   enableThumbnails?: boolean
+  enableKeyboardShortcuts?: boolean
   
-  // Toolbar customization
+  // UI visibility controls
+  renderToolbar?: boolean
+  renderSidebar?: boolean
+  customToolbar?: ReactNode
   showPageControls?: boolean
   showZoomControls?: boolean
   showRotateControls?: boolean
@@ -143,6 +128,46 @@ export interface PDFViewerProps {
   showToolSelection?: boolean
   showFitOptions?: boolean
   showPresentationMode?: boolean
+  showDocumentInfo?: boolean
+  
+  // Advanced UI controls
+  hideToolbarComponents?: Array<'open' | 'print' | 'download' | 'search' | 'tools' | 'zoom' | 'view' | 'presentation' | 'info'>
+  hideSidebarTabs?: Array<'thumbnails' | 'outline' | 'attachments' | 'layers'>
+  customToolbarActions?: Array<{ id: string, label: string, icon: string, onClick: () => void }>
+  
+  // Content
+  highlights?: PDFHighlight[]
+  
+  // Event handlers
+  onDocumentLoad?: (pdf: PDFDocumentProxy) => void
+  onPageChange?: (page: number) => void
+  onScaleChange?: (scale: number) => void
+  onRotationChange?: (rotation: number) => void
+  onViewModeChange?: (mode: ViewMode) => void
+  onSidebarToggle?: (isOpen: boolean) => void
+  onSidebarViewChange?: (view: SidebarView) => void
+  onZoomModeChange?: (mode: ZoomMode) => void
+  onToolChange?: (tool: ToolbarTool) => void
+  onError?: (error: Error) => void
+  onPageRender?: (page: PDFPageProxy) => void
+  
+  // Search handlers
+  onSearch?: (term: string) => void
+  onSearchNext?: () => void
+  onSearchPrevious?: () => void
+  onClearSearch?: () => void
+  
+  // File operation handlers
+  onPrint?: () => void
+  onDownload?: () => void
+  onOpenFile?: (file: File) => void
+  
+  // Advanced handlers
+  onPresentationMode?: () => void
+  onDocumentInfo?: (info: PDFDocumentInfo) => void
+  onZoomToFit?: () => void
+  onZoomToWidth?: () => void
+  onActualSize?: () => void
 }
 
 export interface PDFToolbarProps {
