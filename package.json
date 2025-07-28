@@ -1,6 +1,6 @@
 {
   "name": "@nyazkhan/react-pdf-viewer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A comprehensive React TypeScript component library for viewing and interacting with PDF files using Mozilla PDF.js. Features include text selection, highlighting, search, sidebar, multiple view modes, and complete PDF.js web viewer functionality.",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -88,8 +88,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "dependencies": {
-    "@nyazkhan/react-pdf-viewer": "^1.0.2"
   }
 }
