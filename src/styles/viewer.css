@@ -1,0 +1,392 @@
+/* PDF Viewer Container */
+.pdf-viewer {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+}
+
+.pdf-viewer *,
+.pdf-viewer *::before,
+.pdf-viewer *::after {
+  box-sizing: inherit;
+}
+
+/* PDF Toolbar */
+.pdf-toolbar {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.pdf-toolbar button {
+  transition: all 0.2s ease;
+  border: 1px solid #dee2e6;
+  background-color: white;
+  color: #495057;
+}
+
+.pdf-toolbar button:hover:not(:disabled) {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.pdf-toolbar button:active:not(:disabled) {
+  background-color: #e9ecef;
+  border-color: #6c757d;
+}
+
+.pdf-toolbar button:disabled {
+  color: #6c757d;
+  background-color: #f8f9fa;
+  border-color: #dee2e6;
+  cursor: not-allowed;
+}
+
+.pdf-toolbar input,
+.pdf-toolbar select {
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.pdf-toolbar input:focus,
+.pdf-toolbar select:focus {
+  outline: 0;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* PDF Page */
+.pdf-page {
+  position: relative;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+.pdf-page canvas {
+  display: block;
+  border: 1px solid #dee2e6;
+}
+
+/* PDF Text Layer - Optimized for Smooth Selection */
+.pdf-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  line-height: 1.0;
+  z-index: 1;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  pointer-events: auto;
+  
+  /* Performance optimizations for smoother selection */
+  will-change: transform;
+  contain: layout style paint;
+  transform: translateZ(0); /* Force hardware acceleration */
+}
+
+/* Text spans and divs within the text layer */
+.pdf-text-layer > span,
+.pdf-text-layer > div {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  pointer-events: auto;
+  background: transparent;
+  
+  /* Optimize for smooth text selection */
+  display: block;
+  overflow: visible;
+  box-sizing: border-box;
+  
+  /* Ensure smooth font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeSpeed;
+  
+  /* Better touch/mobile selection */
+  -webkit-touch-callout: text;
+  -webkit-tap-highlight-color: transparent;
+  
+  /* Prevent layout shift during selection */
+  contain: layout;
+}
+
+/* Enhanced selection highlighting */
+.pdf-text-layer > span::selection,
+.pdf-text-layer > div::selection {
+  background: rgba(0, 123, 255, 0.4);
+  color: transparent;
+  text-shadow: none;
+}
+
+.pdf-text-layer > span::-moz-selection,
+.pdf-text-layer > div::-moz-selection {
+  background: rgba(0, 123, 255, 0.4);
+  color: transparent;
+  text-shadow: none;
+}
+
+/* Webkit specific optimizations */
+.pdf-text-layer > span::-webkit-selection,
+.pdf-text-layer > div::-webkit-selection {
+  background: rgba(0, 123, 255, 0.4);
+  color: transparent;
+}
+
+/* Line-based text containers for smoother selection */
+.pdf-text-layer > div {
+  /* Line containers should have consistent spacing */
+  letter-spacing: normal;
+  word-spacing: normal;
+  
+  /* Ensure proper text flow */
+  direction: ltr;
+  unicode-bidi: normal;
+  
+  /* Optimize for continuous selection */
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Improve selection experience on different devices */
+@media (pointer: coarse) {
+  .pdf-text-layer > span,
+  .pdf-text-layer > div {
+    /* Increase touch target for mobile */
+    min-height: 16px;
+    -webkit-touch-callout: text;
+  }
+}
+
+/* Reduce jank during selection */
+.pdf-text-layer * {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.pdf-text-layer .highlight {
+  margin: -1px;
+  padding: 1px;
+  background-color: rgba(180, 0, 170, 0.2);
+  border-radius: 4px;
+}
+
+/* PDF Highlights */
+.pdf-highlights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.pdf-highlight {
+  position: relative;
+}
+
+.pdf-highlight-rect {
+  position: absolute;
+  border-radius: 2px;
+  transition: opacity 0.2s ease;
+}
+
+.pdf-highlight-rect:hover {
+  opacity: 0.5 !important;
+}
+
+/* PDF Highlight Layer */
+.pdf-highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.pdf-highlight-layer .pdf-highlight-rect {
+  pointer-events: auto;
+}
+
+/* Loading and Error States */
+.pdf-viewer .loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #6c757d;
+  font-size: 16px;
+}
+
+.pdf-viewer .error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: #dc3545;
+  font-size: 16px;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .pdf-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+  }
+  
+  .pdf-toolbar button {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .pdf-toolbar input,
+  .pdf-toolbar select {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pdf-toolbar {
+    gap: 6px;
+    padding: 6px;
+  }
+  
+  .pdf-toolbar button {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .pdf-toolbar input,
+  .pdf-toolbar select {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pdf-page {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Enhanced Toolbar Styles */
+.pdf-toolbar {
+  background-color: #2c3e50 !important;
+  color: white !important;
+  border-bottom: 1px solid #34495e !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.pdf-toolbar button {
+  background-color: #34495e !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.pdf-toolbar button:hover:not(:disabled) {
+  background-color: #3498db !important;
+}
+
+.pdf-toolbar button:disabled {
+  background-color: #34495e !important;
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+}
+
+.pdf-toolbar .active,
+.pdf-toolbar button.active {
+  background-color: #3498db !important;
+  color: white !important;
+}
+
+.pdf-toolbar input,
+.pdf-toolbar select {
+  background-color: #495057 !important;
+  color: white !important;
+  border: 1px solid #495057 !important;
+}
+
+.pdf-toolbar input:focus,
+.pdf-toolbar select:focus {
+  border-color: #3498db !important;
+  box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25) !important;
+}
+
+.pdf-toolbar input::placeholder {
+  color: #bdc3c7 !important;
+}
+
+/* Toolbar Groups and Labels */
+.pdf-toolbar .toolbar-group {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.pdf-toolbar .toolbar-label {
+  font-size: 12px;
+  color: #bdc3c7;
+  font-weight: 500;
+}
+
+.pdf-toolbar .separator {
+  width: 1px;
+  height: 32px;
+  background-color: #495057;
+  margin: 0 8px;
+}
+
+/* Search Input Specific Styles */
+.pdf-toolbar input[type="text"].search-input {
+  width: 200px;
+  text-align: left;
+}
+
+.pdf-toolbar input[type="text"]:not(.search-input) {
+  text-align: center;
+  width: 60px;
+}
+
+/* Print Styles */
+@media print {
+  .pdf-toolbar {
+    display: none;
+  }
+  
+  .pdf-viewer {
+    border: none;
+    box-shadow: none;
+  }
+  
+  .pdf-page {
+    box-shadow: none;
+    margin: 0;
+  }
+} 

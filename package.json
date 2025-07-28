@@ -1,0 +1,92 @@
+{
+  "name": "@nyazkhan/react-pdf-viewer",
+  "version": "1.0.0",
+  "description": "A comprehensive React TypeScript component library for viewing and interacting with PDF files using Mozilla PDF.js. Features include text selection, highlighting, search, sidebar, multiple view modes, and complete PDF.js web viewer functionality.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles": {
+      "import": "./dist/styles/viewer.css",
+      "require": "./dist/styles/viewer.css"
+    },
+    "./styles/viewer.css": "./dist/styles/viewer.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "example": "cd example && npm run dev",
+    "example:build": "cd example && npm run build",
+    "example:install": "cd example && npm install",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "react",
+    "typescript",
+    "pdf",
+    "pdfjs",
+    "pdf-viewer",
+    "component-library",
+    "mozilla-pdfjs",
+    "pdf-reader",
+    "document-viewer",
+    "text-selection",
+    "pdf-highlighting",
+    "pdf-search",
+    "web-components",
+    "pdf-annotation",
+    "responsive-pdf",
+    "pdf-rendering",
+    "javascript-pdf",
+    "react-components",
+    "pdf-library",
+    "document-processing"
+  ],
+  "author": {
+    "name": "Nyaz Khan",
+    "email": "khannyaz1705@gmail.com",
+    "url": "https://github.com/nyazkhan"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nyazkhan/react-pdf-viewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nyazkhan/react-pdf-viewer/issues"
+  },
+  "homepage": "https://github.com/nyazkhan/react-pdf-viewer#readme",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0",
+    "pdfjs-dist": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "pdfjs-dist": "^4.0.379",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+} 
