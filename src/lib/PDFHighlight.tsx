@@ -22,21 +22,24 @@ export const PDFHighlight: React.FC<PDFHighlightProps> = ({
     const { rects, color = '#ffff00', opacity = 0.3 } = highlight
 
     return rects.map((rect: PDFRect, index: number) => {
-      // Simplified coordinate transformation
-      // PDF coordinates: origin at bottom-left, Y increases upward
-      // Screen coordinates: origin at top-left, Y increases downward
+      // The rect coordinates are already converted to viewport pixels by the API layer
+      // No additional scaling needed
       const canvasRect = {
-        left: rect.left * viewport.scale,
-        top: (viewport.height - rect.top - rect.height) * viewport.scale,
-        width: rect.width * viewport.scale,
-        height: rect.height * viewport.scale,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
       }
 
       // Debug logging
-      console.log(`PDFHighlight render:`, {
+      console.log(`🎨 PDFHighlight rendering:`, {
+        highlightId: highlight.id,
+        rectIndex: index,
         original: rect,
         viewport: { width: viewport.width, height: viewport.height, scale: viewport.scale },
-        transformed: canvasRect
+        finalPosition: canvasRect,
+        pageNumber: highlight.pageNumber,
+        currentPage: pageNumber
       })
 
       const highlightStyle: React.CSSProperties = {
@@ -50,7 +53,8 @@ export const PDFHighlight: React.FC<PDFHighlightProps> = ({
         pointerEvents: 'auto',
         cursor: highlight.onClick || onHighlightClick ? 'pointer' : 'default',
         zIndex: 10,
-        border: '1px solid red', // Debug border to make highlights visible
+        border: '2px solid red', // Debug border to make highlights visible
+        boxSizing: 'border-box',
       }
 
       return (

@@ -8,10 +8,13 @@ import {
   type ToolbarTool,
   type PDFDocumentProxy,
   type PDFDocumentInfo,
-  type PDFHighlightType
+  type PDFHighlightType,
+  type PDFPageViewport
 } from '../../dist/index.mjs'
 import '../../dist/styles/viewer.css'
 import TestPDFExample from './TestPDFExample'
+import { useHighlightAPI, getViewportInfo } from './highlightAPI'
+import config from './config'
 
 type AppMode = 'comprehensive' | 'simple'
 
@@ -36,6 +39,14 @@ function App() {
   const [highlights, setHighlights] = useState<PDFHighlightType[]>([])
   const [highlightText, setHighlightText] = useState('')
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null)
+  const [currentViewport, setCurrentViewport] = useState<PDFPageViewport | null>(null)
+  const [highlightRenderKey, setHighlightRenderKey] = useState(0) // Force re-render key
+  
+  // API integration
+  const { searchAndHighlight, searchLocalPDF, healthCheck, isLoading, error } = useHighlightAPI()
+  
+  // API health state
+  const [apiAvailable, setApiAvailable] = useState(false)
   
   // Worker status
   const [workerInfo, setWorkerInfo] = useState({
@@ -45,19 +56,94 @@ function App() {
     testResult: ''
   })
 
-  // Create highlight from text search using library utility
+  // Create highlight from text search using PyMuPDF API
   const createHighlightFromText = useCallback(async (searchText: string) => {
     if (!pdfDocument || !searchText.trim()) {
+      console.log('❌ No PDF document or search text provided')
       return
     }
 
-    try {
-      const newHighlights = await PDFUtils.createHighlights(pdfDocument, searchText)
-      setHighlights(newHighlights)
-    } catch (error) {
-      console.error('Error creating highlights:', error)
+    if (!currentViewport) {
+      console.warn('❌ No viewport available for highlighting')
+      return
     }
-  }, [pdfDocument])
+
+    console.log('🔍 Starting highlight creation:', {
+      searchText: searchText.substring(0, 50) + '...',
+      currentPage: currentPage,
+      currentScale: currentScale,
+      viewport: { width: currentViewport.width, height: currentViewport.height, scale: currentViewport.scale },
+      apiAvailable: apiAvailable,
+      fileType: file instanceof File ? 'File' : typeof file
+    })
+
+    try {
+      let newHighlights: PDFHighlightType[] = []
+
+      if (config.enabled && apiAvailable) {
+        // Use PyMuPDF API for superior highlighting
+        if (file instanceof File) {
+          // File upload case - always search current page only
+          const viewport = getViewportInfo(currentViewport)
+          const searchOptions = { pageNumber: currentPage }
+          console.log('📄 Using file upload API call with viewport:', { viewport, searchOptions })
+          newHighlights = await searchAndHighlight(file, searchText, viewport, searchOptions)
+        } else if (typeof file === 'string' && file.startsWith('/')) {
+          // Local file case (for development) - always search current page only
+          const viewport = getViewportInfo(currentViewport)
+          const searchOptions = { pageNumber: currentPage }
+          // For local files, try to resolve path relative to public directory
+          const absolutePath = file.startsWith('/public/') 
+            ? `/Users/rahil/workspace/react-pdf-viewer/example${file}`
+            : `/Users/rahil/workspace/react-pdf-viewer/example/public${file}`
+          console.log('📄 Using local file API call:', { absolutePath, viewport, searchOptions })
+          newHighlights = await searchLocalPDF(absolutePath, searchText, viewport, searchOptions)
+        } else {
+          // URL case - fallback to built-in for now (could implement URL download + API call)
+          if (config.fallbackToBuiltIn) {
+            console.log('🌐 Using built-in highlighting for URL-based PDF')
+            newHighlights = await PDFUtils.createHighlights(pdfDocument, searchText)
+          }
+        }
+      } else {
+        // API disabled or unavailable, use built-in highlighting
+        console.log('🔧 Using built-in highlighting (API disabled or unavailable)')
+        newHighlights = await PDFUtils.createHighlights(pdfDocument, searchText)
+      }
+
+      console.log('✅ Highlights created successfully:', {
+        count: newHighlights.length,
+        highlights: newHighlights.map(h => ({
+          id: h.id,
+          pageNumber: h.pageNumber,
+          rectsCount: h.rects.length,
+          content: h.content?.substring(0, 30) + '...'
+        }))
+      })
+
+      // Update highlights and force immediate re-render
+      setHighlights(newHighlights)
+      setHighlightRenderKey(prev => prev + 1) // Force component re-render
+      
+      if (config.debug) {
+        const method = config.enabled && apiAvailable ? 'PyMuPDF API' : 'built-in'
+        console.log(`Created ${newHighlights.length} highlights using ${method}`)
+      }
+    } catch (error) {
+      console.error('❌ Error creating highlights:', error)
+      
+      // Fallback to built-in highlighting on API error
+      if (config.enabled && config.fallbackToBuiltIn) {
+        try {
+          console.log('🔄 Falling back to built-in highlighting due to API error')
+          const fallbackHighlights = await PDFUtils.createHighlights(pdfDocument, searchText)
+          setHighlights(fallbackHighlights)
+        } catch (fallbackError) {
+          console.error('❌ Fallback highlighting also failed:', fallbackError)
+        }
+      }
+    }
+  }, [pdfDocument, currentViewport, file, searchAndHighlight, searchLocalPDF, apiAvailable, currentPage, currentScale])
 
   // Handle highlight text change
   const handleHighlightTextChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -82,6 +168,22 @@ function App() {
     createHighlightFromText(predefinedText)
   }, [createHighlightFromText])
 
+  // Check API health on component mount
+  const checkAPIHealth = useCallback(async () => {
+    if (config.enabled) {
+      try {
+        const isHealthy = await healthCheck()
+        setApiAvailable(isHealthy)
+        if (config.debug) {
+          console.log(`API health check: ${isHealthy ? '✅ Available' : '❌ Unavailable'}`)
+        }
+      } catch (error) {
+        console.warn('API health check failed:', error)
+        setApiAvailable(false)
+      }
+    }
+  }, [healthCheck])
+
   // Update worker info using library utility
   const updateWorkerInfo = useCallback(() => {
     const info = PDFUtils.getWorkerInfo()
@@ -91,7 +193,9 @@ function App() {
       retryCount: info.retryCount,
       testResult: ''
     })
-  }, [])
+    // Also check API health when worker info is updated
+    checkAPIHealth()
+  }, [checkAPIHealth])
 
   // Test worker functionality using library utility
   const testWorker = useCallback(async () => {
@@ -120,28 +224,111 @@ function App() {
   }, [])
 
   // PDF event handlers
-  const handleDocumentLoad = useCallback((pdf: PDFDocumentProxy) => {
+  const handleDocumentLoad = useCallback(async (pdf: PDFDocumentProxy) => {
     console.log('PDF loaded:', pdf.numPages, 'pages')
     updateWorkerInfo()
     setPdfDocument(pdf)
-  }, [updateWorkerInfo])
+    
+    // Get initial viewport for current page and scale
+    try {
+      const page = await pdf.getPage(currentPage)
+      const viewport = page.getViewport({ scale: currentScale, rotation: currentRotation })
+      setCurrentViewport(viewport)
+      if (config.debug) {
+        console.log('🚀 Initial viewport set:', { 
+          width: viewport.width, 
+          height: viewport.height, 
+          scale: viewport.scale, 
+          rotation: viewport.rotation,
+          page: currentPage
+        })
+      }
+    } catch (error) {
+      console.warn('❌ Failed to get initial viewport:', error)
+    }
+  }, [updateWorkerInfo, currentPage, currentScale, currentRotation])
 
   const handleError = useCallback((error: Error) => {
     console.error('PDF error:', error)
     updateWorkerInfo()
   }, [updateWorkerInfo])
 
-  const handlePageChange = useCallback((page: number) => {
+  // Handle page change
+  const handlePageChange = useCallback(async (page: number) => {
     setCurrentPage(page)
-  }, [])
+    
+    // Update viewport for new page
+    if (pdfDocument) {
+      try {
+        const pdfPage = await pdfDocument.getPage(page)
+        const viewport = pdfPage.getViewport({ scale: currentScale, rotation: currentRotation })
+        setCurrentViewport(viewport)
+        // Force highlight re-render on page change to ensure proper viewport sync
+        setHighlightRenderKey(prev => prev + 1)
+        if (config.debug) {
+          console.log('📄 Viewport updated for page change:', { 
+            page, 
+            width: viewport.width, 
+            height: viewport.height,
+            scale: viewport.scale,
+            rotation: viewport.rotation
+          })
+        }
+      } catch (error) {
+        console.warn('❌ Failed to update viewport for new page:', error)
+      }
+    }
+  }, [pdfDocument, currentScale, currentRotation])
 
-  const handleScaleChange = useCallback((scale: number) => {
+  const handleScaleChange = useCallback(async (scale: number) => {
     setCurrentScale(scale)
-  }, [])
+    
+    // Update viewport for new scale
+    if (pdfDocument) {
+      try {
+        const page = await pdfDocument.getPage(currentPage)
+        const viewport = page.getViewport({ scale: scale, rotation: currentRotation })
+        setCurrentViewport(viewport)
+        // Force highlight re-render on scale change to ensure proper coordinate sync
+        setHighlightRenderKey(prev => prev + 1)
+        if (config.debug) {
+          console.log('📏 Viewport updated for scale change:', { 
+            scale, 
+            width: viewport.width, 
+            height: viewport.height,
+            rotation: viewport.rotation
+          })
+        }
+      } catch (error) {
+        console.warn('❌ Failed to update viewport for new scale:', error)
+      }
+    }
+  }, [pdfDocument, currentPage, currentRotation])
 
-  const handleRotationChange = useCallback((rotation: number) => {
+  const handleRotationChange = useCallback(async (rotation: number) => {
     setCurrentRotation(rotation)
-  }, [])
+    
+    // Update viewport for new rotation
+    if (pdfDocument) {
+      try {
+        const page = await pdfDocument.getPage(currentPage)
+        const viewport = page.getViewport({ scale: currentScale, rotation: rotation })
+        setCurrentViewport(viewport)
+        // Force highlight re-render on rotation change to ensure proper coordinate sync
+        setHighlightRenderKey(prev => prev + 1)
+        if (config.debug) {
+          console.log('🔄 Viewport updated for rotation change:', { 
+            rotation, 
+            width: viewport.width, 
+            height: viewport.height,
+            scale: viewport.scale
+          })
+        }
+      } catch (error) {
+        console.warn('❌ Failed to update viewport for new rotation:', error)
+      }
+    }
+  }, [pdfDocument, currentPage, currentScale])
 
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     setViewMode(mode)
@@ -373,18 +560,18 @@ function App() {
                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
                  <button
                    onClick={handleHighlightText}
-                   disabled={!highlightText.trim() || !pdfDocument}
+                   disabled={!highlightText.trim() || !pdfDocument || isLoading}
                    style={{
                      padding: '6px 12px',
                      fontSize: '12px',
-                     backgroundColor: !highlightText.trim() || !pdfDocument ? '#ccc' : '#03a9f4',
+                     backgroundColor: !highlightText.trim() || !pdfDocument || isLoading ? '#ccc' : '#03a9f4',
                      color: 'white',
                      border: 'none',
                      borderRadius: '4px',
-                     cursor: !highlightText.trim() || !pdfDocument ? 'not-allowed' : 'pointer'
+                     cursor: !highlightText.trim() || !pdfDocument || isLoading ? 'not-allowed' : 'pointer'
                    }}
                  >
-                   🔍 Highlight Text
+                   {isLoading ? '⏳ Searching...' : '🔍 Highlight Text'}
                  </button>
                  
                  <button
@@ -419,6 +606,34 @@ function App() {
                  </button>
                </div>
 
+               {/* Search info */}
+                <div style={{ 
+                  marginTop: '8px', 
+                  fontSize: '11px', 
+                  color: '#666',
+                  fontStyle: 'italic'
+                }}>
+                  🔍 Always searches current page only for optimal performance
+                </div>
+
+                {config.enabled && (
+                 <div style={{ 
+                   padding: '6px', 
+                   backgroundColor: apiAvailable ? '#e8f5e8' : '#ffebee', 
+                   borderRadius: '4px',
+                   fontSize: '11px',
+                   color: apiAvailable ? '#2e7d32' : '#c62828',
+                   marginBottom: '8px'
+                 }}>
+                   <strong>PyMuPDF API:</strong> {apiAvailable ? '✅ Available' : '❌ Unavailable'}
+                   {!apiAvailable && config.fallbackToBuiltIn && (
+                     <div style={{ marginTop: '2px' }}>
+                       Using built-in highlighting fallback
+                     </div>
+                   )}
+                 </div>
+               )}
+
                {highlights.length > 0 && (
                  <div style={{ 
                    padding: '8px', 
@@ -430,7 +645,26 @@ function App() {
                    <strong>✅ Found {highlights.length} highlight(s)</strong>
                    <div style={{ marginTop: '4px' }}>
                      Highlights are shown with yellow background on the PDF pages.
+                     {config.enabled && apiAvailable && ' (Using PyMuPDF API)'}
+                     {config.enabled && !apiAvailable && ' (Using built-in fallback)'}
                    </div>
+                 </div>
+               )}
+               
+               {error && (
+                 <div style={{ 
+                   padding: '8px', 
+                   backgroundColor: '#ffebee', 
+                   borderRadius: '4px',
+                   fontSize: '12px',
+                   color: '#c62828'
+                 }}>
+                   <strong>❌ API Error:</strong> {error}
+                   {config.fallbackToBuiltIn && (
+                     <div style={{ marginTop: '4px' }}>
+                       Falling back to built-in highlighting.
+                     </div>
+                   )}
                  </div>
                )}
                
@@ -638,6 +872,7 @@ function App() {
         {/* PDF Viewer */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <PDFViewer
+            key={`pdf-viewer-${highlightRenderKey}`} // Force re-render when highlights change
             file={file}
             page={currentPage}
             scale={currentScale}

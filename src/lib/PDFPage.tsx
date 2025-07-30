@@ -312,16 +312,24 @@ export const PDFPage: React.FC<PDFPageProps> = ({
       
       {highlights.length > 0 && viewport && (
         (() => {
+          const pageHighlights = highlights.filter(h => h.pageNumber === pageNumber)
+          
           // Debug logging for highlights
-          console.log(`PDFPage rendering highlights for page ${pageNumber}:`, {
+          console.log(`📄 PDFPage rendering highlights for page ${pageNumber}:`, {
             totalHighlights: highlights.length,
-            pageHighlights: highlights.filter(h => h.pageNumber === pageNumber).length,
-            viewport: { width: viewport.width, height: viewport.height, scale: viewport.scale }
+            pageHighlights: pageHighlights.length,
+            viewport: { width: viewport.width, height: viewport.height, scale: viewport.scale },
+            pageHighlightsDetails: pageHighlights.map(h => ({
+              id: h.id,
+              rectsCount: h.rects.length,
+              content: h.content?.substring(0, 30) + '...'
+            }))
           })
+          
           return (
             <div style={highlightLayerStyle} className="pdf-highlight-layer">
               <PDFHighlight
-                highlights={highlights.filter(h => h.pageNumber === pageNumber)}
+                highlights={pageHighlights}
                 pageNumber={pageNumber}
                 viewport={viewport}
               />
